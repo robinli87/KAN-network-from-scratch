@@ -1,3 +1,5 @@
+# Catherine.py  Model with activation functions that are well defined and fast to compute. May not be as versatile as full splines but nevertheless should be good enough.
+
 # single KAN but multithreaded and optimised
 
 # KAN network
@@ -9,13 +11,12 @@ import splines
 import copy
 import multiprocessing as mp
 import threading
-
-sp = splines.spline_tools()
+import time
 
 
 class NN:
 
-    def __init__(self, structure, order=3, grids=10, learning_rate=0.001, train_inputs=None, train_outputs=None):
+    def __init__(self, structure, order=3, grids=10, learning_rate=0.000000001, train_inputs=None, train_outputs=None):
         # trainable params
         self.grids = grids
         self.structure = structure
@@ -27,33 +28,32 @@ class NN:
         self.dw = 0.00001
         self.dc = 0.00001
         self.learning_rate = learning_rate
-        self.knots = np.linspace(0, 1, grids)
+        # self.knots = np.linspace(0, 1, grids)
 
         # construct the the net by initilising its nodes and edges
         self.nodes = []
         for l in range(0, self.layers+1):
             self.nodes.append(np.zeros(structure[l]))
 
-        self.spc = []  # spline coefficients, 4D or 5D object
-        for l in range(0, self.layers):
-            this_layer = []
-            for j in range(0, self.structure[l]):
-                last_col = []
-                for k in range(0, self.structure[l+1]):
-                    last_col.append(sp.initialise_splines(order, grids))
-                this_layer.append(last_col)
-            self.spc.append(this_layer)
-
-        self.w = []  # weights, size equal to the number of edges
+        self.spc = []
         self.edges = []
         # w[l][j][k]
         for l in range(0, self.layers):
-            self.w.append(np.random.normal(
-                0, 1, size=(structure[l], structure[l+1])))
+            this_layer = []
+            for j in range(0, structure[l]):
+                col = []
+                for k in range(0, structure[l+1]):
+                    col.append(np.random.normal(0, 1, size=(5)))
+
+                this_layer.append(col)
+
+            self.spc.append(this_layer)
             self.edges.append(np.zeros((structure[l], structure[l+1])))
 
         self.dc = 0.000001
         self.dw = 0.000001
+        # start logging
+        threading.Thread(target=self.log).start()
 
         # output from activation
 
@@ -75,30 +75,39 @@ class NN:
         # now we need to initialise the activation functions, i.e. splines
         # we need to store the free coefficients and total coefficients
 
-    def spline(self, x, free_coefficients):
+    def log(self):
+        time.sleep(1)
+        e = 0
+        while True:
+            with open("history.csv", "a") as history:
+                history.write(str(e) + "," + str(self.bench) + "\n")
+            e = e+1
+
+            time.sleep(0.2)
+
+    def spline(self, x, coefficients):
         # alles = sp.fill_coefficients(free_coefficients, self.knots)
-        S = sp.spline(x, free_coefficients, self.knots)
+        S = 0
+        for i in range(0, 4):
+            S += coefficients[i] * x ** i
         return (S)
 
     def silu(self, x):
         # this is the basis function
-        return (x / (1 + np.exp(x)))
+        try:
+            return (x / (1 + np.exp(-x)))
+        except OverflowError:
+            print("overflow in silu")
+            return (0)
 
-    def activation(self, x, l, j, k, these_FC, W):
+    def activation(self, x, l, j, k, hyperparameters):
         # we want to use a specified local weight and spline coefficients so that we can observe effects of perturbation
-        p = W[l][j][k] * self.silu(x) + self.spline(x, these_FC[l][j][k])
+        p = hyperparameters[l][j][k][4] * self.silu(x
+                                                    ) + self.spline(x, hyperparameters[l][j][k])
 
         return (p)
 
-    def normalise_linear(self, vector):
-
-        N = []
-        for i in vector:
-            N.append((float(i) - min(vector)) /
-                     (max(vector) - min(vector)))
-        return (N)
-
-    def run(self, coefficients, weights, train_inputs):
+    def run(self, hyperparameters, train_inputs):
         # first we must separate each data point
         out = []
 
@@ -122,7 +131,7 @@ class NN:
                     for j in range(0, self.structure[l]):
                         # computing the output of connecting edges
                         edges[l][j][k] = self.activation(
-                            nodes[l][j], l, j, k, coefficients, weights)
+                            nodes[l][j], l, j, k, hyperparameters)
                 # now go through each node in the next layer
                 for k in range(0, self.structure[l+1]):
                     # sum up contributions from edges leading to this node
@@ -130,15 +139,12 @@ class NN:
                         nodes[l+1][k] += edges[l][j][k]
 
                 # now we need to normalise this layer, unless it's the last one'
-                if l != self.layers - 1:
-                    nodes[l+1] = self.normalise_linear(nodes[l+1])
-                    print(nodes[l+1])
 
             out.append(nodes[-1])
 
         return (out)
 
-    def forward_propagate(self, coefficients, weights, input_vectors):
+    def forward_propagate(self, hyperparameters, input_vectors):
         batch_size = len(input_vectors)
         # first layer
         # batch_out = []
@@ -179,10 +185,10 @@ class NN:
         # input_vectors = copy.deepcopy(batch_out)
 
         # hidden layers
+        batch_out = []
 
-        for l in range(0, self.layers-1):
+        for l in range(0, self.layers):
             batch_out = []
-            total = []
             # compute just the next layer
             for i in range(0, batch_size):
                 # now we are looking at each input vector.
@@ -194,61 +200,27 @@ class NN:
                     for j in range(0, self.structure[l]):
                         # call the activation function
                         this_edge = self.activation(
-                            input_vectors[i][j], l, j, k, coefficients, weights)
+                            input_vectors[i][j], l, j, k, hyperparameters)
                         next_node_k.append(this_edge)
                     edges.append(next_node_k)
 
                 # now we have all the edges computed, to get the next layer just sum up
                 this_out = []
                 for k in range(0, self.structure[l+1]):
-                    this_node = sum(edges[k])
-                    this_out.append(this_node)
-                    total.append(this_node)
+                    this_out.append(sum(edges[k]))
                 batch_out.append(this_out)
 
-            # now the next layer has been calculated. We want to normalise it
-            # firstly find the maximum and minimum
-            biggest = max(total)
-            smallest = min(total)
-            # apply normalisation function`
-            for i in range(0, batch_size):
-                for j in range(0, len(batch_out[i])):
-                    batch_out[i][j] = (batch_out[i][j] -
-                                       smallest) / (biggest - smallest)
+            # now we want to change the scale of the grids
+            # self.knots = np.linspace(min(total), max(total), self.grids)
 
             input_vectors = copy.deepcopy(batch_out)
 
-        # now we are at the penultimate layer. The last layer does not require normalisation
-
-        batch_out = []
-        # compute just the next layer
-        for i in range(0, batch_size):
-            # now we are looking at each input vector.
-            # find the edges
-            # edges = np.zeros((self.structure[l], self.structure[l+1]))
-            edges = []  # 2D rectangular matrix connecting between 2 layers
-            for k in range(0, self.structure[-1]):
-                next_node_k = []  # paths leading to the kth node on the next row
-                for j in range(0, self.structure[-2]):
-                    # call the activation function
-                    this_edge = self.activation(
-                        input_vectors[i][j], self.layers-1, j, k, coefficients, weights)
-                    next_node_k.append(this_edge)
-                edges.append(next_node_k)
-
-            # now we have all the edges computed, to get the next layer just sum up
-            this_out = []
-            for k in range(0, self.structure[-1]):
-                this_node = sum(edges[k])
-                this_out.append(this_node)
-                # total.append(this_node)
-            batch_out.append(this_out)
-
         return (batch_out)
 
-    def loss(self, c, w):
+    def loss(self, hyperparameters):
         error = 0
-        result = self.forward_propagate(c, w, self.train_inputs)
+        result = self.forward_propagate(hyperparameters, self.train_inputs)
+        # print(result)
         for i in range(0, len(result)):
             for j in range(0, len(result[i])):
                 error += (result[i][j] - self.train_outputs[i][j])**2
@@ -256,36 +228,19 @@ class NN:
         # error = np.dot(diff, diff)
         return (error)
 
-    def weights_gradient(self, l, j, k):
-        # this is multiprocessed. Unfortunately, we can't make changes to global variables in these local processes'
-        upper = copy.deepcopy(self.w)
-        lower = copy.deepcopy(self.w)
-        upper[l][j][k] += dw
-        lower[l][j][k] -= dw
-        upper_loss = self.loss(self.spc, upper)
-        lower_loss = self.loss(self.spc, lower)
-        gradient = (upper_loss - lower_loss)/(self.dw*2)
-
-        return ([gradient, l, j, k])
-
-    def modify_weights(self, results):
-        # here we can make changes to global variables
-        self.w[results[1]][results[2]][results[3]
-                                       ] -= self.learning_rate * results[0]
-
-    def SPC_gradient(self, l, j, k, g, n):
+    def SPC_gradient(self, l, j, k, n):
         up = copy.deepcopy(self.spc)
-        up[l][j][k][g][n] += self.dc
+        up[l][j][k][n] += self.dc
         down = copy.deepcopy(self.spc)
-        down[l][j][k][g][n] -= self.dc
-        gradient = (self.loss(up, self.w) -
-                    self.loss(down, self.w)) / (2 * self.dc)
+        down[l][j][k][n] -= self.dc
+        gradient = (self.loss(up) -
+                    self.loss(down)) / (2 * self.dc)
 
-        return ([gradient, l, j, k, g, n])
+        return ([gradient, l, j, k, n])
 
     def modify_spc(self, results):
-        self.spc[results[1]][results[2]][results[3]][results[4]
-                                                     ][results[5]] += -self.learning_rate * results[0]
+        self.spc[results[1]][results[2]][results[3]
+                                         ][results[4]] += -self.learning_rate * results[0]
 
     def backpropagate(self):
         pool = mp.Pool()
@@ -293,38 +248,34 @@ class NN:
         for l in range(0, self.layers):
             for j in range(0, self.structure[l]):
                 for k in range(0, self.structure[l+1]):
-                    pool.apply_async(self.weights_gradient, args=(
-                        l, j, k), callback=self.modify_weights)
-
                     # now for all of the c parameters (polynomial coefficients)
-
-                    for n in range(0, self.order):
-                        for g in range(0, self.grids):
-                            pool.apply_async(self.SPC_gradient,
-                                             args=(l, j, k, n, g), callback=self.modify_spc)
+                    for n in range(0, 5):
+                        # for g in range(0, self.grids):
+                        pool.apply_async(self.SPC_gradient,
+                                         args=(l, j, k, n), callback=self.modify_spc)
 
         pool.close()
         pool.join()
 
     def train(self):
-        bench = self.loss(self.spc, self.w)
+        self.bench = self.loss(self.spc)
         self.backpropagate()
-        new = self.loss(self.spc, self.w)
+        new = self.loss(self.spc)
         epoch = 1
 
-        while (new < bench) or (epoch < 10000):
-            if (new >= bench):
-                self.learning_rate = self.learning_rate / 2
+        while (new < self.bench) or (epoch < 10000):
+            if (new >= self.bench):
+                self.learning_rate = self.learning_rate / 1.3
                 print(self.learning_rate)
             else:
-                self.learning_rate = self.learning_rate * 1.005
+                self.learning_rate = self.learning_rate * 1.008
             print("Loss: ", new)
-            bench = new
+            self.bench = new
             self.backpropagate()
-            new = self.loss(self.spc, self.w)
+            new = self.loss(self.spc)
             epoch += 1
 
-            if epoch > 1000:
+            if new < 0.1:
                 break  # quit if we are taking too long
 
-        return (self.spc, self.w)
+        return (self.spc)

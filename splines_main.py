@@ -5,14 +5,15 @@ import time
 
 grids = 10
 
+x_max = 2
 sp = splines.spline_tools()
 frei = sp.initialise_splines(4, grids)
-knots = np.linspace(0, 1, grids)
+knots = np.linspace(0, x_max, grids)
 
-#try to plot this function and see if it is indeed smooth
+# try to plot this function and see if it is indeed smooth
 fig = plt.Figure()
-X = np.linspace(0, 1, 100)
-Y=[]
+X = np.linspace(0, x_max, 100)
+Y = []
 start = time.time()
 for x in X:
     Y.append(sp.spline(x, frei, knots))

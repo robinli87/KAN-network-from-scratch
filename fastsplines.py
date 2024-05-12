@@ -7,4 +7,4 @@
 # faster without class
 
 def activate(hyperparameters):
-    # hyperparameters[][]
+    # hyperparameters[] = [w, c3, c2, c1, c0] - enough for 1 edge

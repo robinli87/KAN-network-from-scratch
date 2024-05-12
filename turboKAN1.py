@@ -9,13 +9,14 @@ import splines
 import copy
 import multiprocessing as mp
 import threading
+import time
 
 sp = splines.spline_tools()
 
 
 class NN:
 
-    def __init__(self, structure, order=3, grids=10, learning_rate=0.001, train_inputs=None, train_outputs=None):
+    def __init__(self, structure, order=3, grids=10, learning_rate=0.0000001, train_inputs=None, train_outputs=None):
         # trainable params
         self.grids = grids
         self.structure = structure
@@ -52,8 +53,10 @@ class NN:
                 0, 1, size=(structure[l], structure[l+1])))
             self.edges.append(np.zeros((structure[l], structure[l+1])))
 
-        self.dc = 0.000001
-        self.dw = 0.000001
+        self.dc = 0.00001
+        self.dw = 0.00001
+        # start logging
+        threading.Thread(target=self.log).start()
 
         # output from activation
 
@@ -75,6 +78,16 @@ class NN:
         # now we need to initialise the activation functions, i.e. splines
         # we need to store the free coefficients and total coefficients
 
+    def log(self):
+        time.sleep(1)
+        e = 0
+        while True:
+            with open("history.csv", "a") as history:
+                history.write(str(e) + "," + str(self.bench) + "\n")
+            e = e+1
+
+            time.sleep(0.5)
+
     def spline(self, x, free_coefficients):
         # alles = sp.fill_coefficients(free_coefficients, self.knots)
         S = sp.spline(x, free_coefficients, self.knots)
@@ -82,7 +95,11 @@ class NN:
 
     def silu(self, x):
         # this is the basis function
-        return (x / (1 + np.exp(x)))
+        try:
+            return (x / (1 + np.exp(-x)))
+        except OverflowError:
+            print("overflow in silu")
+            return (0)
 
     def activation(self, x, l, j, k, these_FC, W):
         # we want to use a specified local weight and spline coefficients so that we can observe effects of perturbation
@@ -179,8 +196,9 @@ class NN:
         # input_vectors = copy.deepcopy(batch_out)
 
         # hidden layers
+        batch_out = []
 
-        for l in range(0, self.layers-1):
+        for l in range(0, self.layers):
             batch_out = []
             total = []
             # compute just the next layer
@@ -206,49 +224,17 @@ class NN:
                     total.append(this_node)
                 batch_out.append(this_out)
 
-            # now the next layer has been calculated. We want to normalise it
-            # firstly find the maximum and minimum
-            biggest = max(total)
-            smallest = min(total)
-            # apply normalisation function`
-            for i in range(0, batch_size):
-                for j in range(0, len(batch_out[i])):
-                    batch_out[i][j] = (batch_out[i][j] -
-                                       smallest) / (biggest - smallest)
+            # now we want to change the scale of the grids
+            # self.knots = np.linspace(min(total), max(total), self.grids)
 
             input_vectors = copy.deepcopy(batch_out)
-
-        # now we are at the penultimate layer. The last layer does not require normalisation
-
-        batch_out = []
-        # compute just the next layer
-        for i in range(0, batch_size):
-            # now we are looking at each input vector.
-            # find the edges
-            # edges = np.zeros((self.structure[l], self.structure[l+1]))
-            edges = []  # 2D rectangular matrix connecting between 2 layers
-            for k in range(0, self.structure[-1]):
-                next_node_k = []  # paths leading to the kth node on the next row
-                for j in range(0, self.structure[-2]):
-                    # call the activation function
-                    this_edge = self.activation(
-                        input_vectors[i][j], self.layers-1, j, k, coefficients, weights)
-                    next_node_k.append(this_edge)
-                edges.append(next_node_k)
-
-            # now we have all the edges computed, to get the next layer just sum up
-            this_out = []
-            for k in range(0, self.structure[-1]):
-                this_node = sum(edges[k])
-                this_out.append(this_node)
-                # total.append(this_node)
-            batch_out.append(this_out)
 
         return (batch_out)
 
     def loss(self, c, w):
         error = 0
         result = self.forward_propagate(c, w, self.train_inputs)
+        # print(result)
         for i in range(0, len(result)):
             for j in range(0, len(result[i])):
                 error += (result[i][j] - self.train_outputs[i][j])**2
@@ -307,19 +293,19 @@ class NN:
         pool.join()
 
     def train(self):
-        bench = self.loss(self.spc, self.w)
+        self.bench = self.loss(self.spc, self.w)
         self.backpropagate()
         new = self.loss(self.spc, self.w)
         epoch = 1
 
-        while (new < bench) or (epoch < 10000):
-            if (new >= bench):
+        while (new < self.bench) or (epoch < 10000):
+            if (new >= self.bench):
                 self.learning_rate = self.learning_rate / 2
                 print(self.learning_rate)
             else:
                 self.learning_rate = self.learning_rate * 1.005
             print("Loss: ", new)
-            bench = new
+            self.bench = new
             self.backpropagate()
             new = self.loss(self.spc, self.w)
             epoch += 1
