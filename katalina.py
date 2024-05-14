@@ -1,4 +1,4 @@
-# Catherine.py  Model with activation functions that are well defined and fast to compute. May not be as versatile as full splines but nevertheless should be good enough.
+# Katalina.py an improved version of Catherine which considers batch training.
 
 # single KAN but multithreaded and optimised
 
@@ -25,6 +25,7 @@ class NN:
 
         self.train_inputs = train_inputs
         self.train_outputs = train_outputs
+        self.N = len(train_inputs)
         self.order = order
         self.dw = 0.00001
         self.dc = 0.00001
@@ -53,29 +54,6 @@ class NN:
 
         self.dc = 0.000001
         self.dw = 0.000001
-        # start logging
-
-        #threading.Thread(target=self.injection).start()
-
-        # output from activation
-
-        # or, this can be simplified by focusing on one forward node at a time, gathering outputs from previous edges and nodes
-
-        # can either store activation functions in matrices, or only care about the params
-        # either ways we need a 5D object, 3 are for identification of position within the net, 2 for naviagating the free params
-        # spc[l][j][k][g][n]
-        # g is gridpoint, n
-
-        # Here, w and fc need to become arrays to hold the individual values.
-        # self.w = random.random()
-        # self.fc, self.knots = splines.initialise_splines(3, grids)
-        # we can go for different grid sizes at each edge, resulting in different knot counts. Or we can go for all the same.
-        # having all the same grids saves calculation, so let's do that
-
-        # need to generate a collection of free coefficients for each activation edge
-
-        # now we need to initialise the activation functions, i.e. splines
-        # we need to store the free coefficients and total coefficients
 
 
     def log(self):
@@ -158,45 +136,6 @@ class NN:
 
     def forward_propagate(self, hyperparameters, input_vectors):
         batch_size = len(input_vectors)
-        # first layer
-        # batch_out = []
-        # total = []
-        # # compute just the next layer
-        # for i in range(0, len(input_vectors)):
-        #     # now we are looking at each input vector.
-        #     # find the edges
-        #     # edges = np.zeros((self.structure[l], self.structure[l+1]))
-        #     edges = []  # 2D rectangular matrix connecting between 2 layers
-        #     for k in range(0, self.structure[l+1]):
-        #         next_node_k = []  # paths leading to the kth node on the next row
-        #         for j in range(0, self.structure[l]):
-        #             # call the activation function
-        #             this_edge = self.activation(
-        #                 self.input_vectors[i][j], l, j, k, coefficients, weights)
-        #             next_node_k.append(this_edge)
-        #         edges.append(next_node_k)
-        #
-        #     # now we have all the edges computed, to get the next layer just sum up
-        #     this_out = []
-        #     for k in range(0, self.structure[l+1]):
-        #         this_node = sum(edges[k])
-        #         this_out.append(this_node)
-        #         total.append(this_node)
-        #     batch_out.append(this_out)
-        #
-        # # now the next layer has been calculated. We want to normalise it
-        # # firstly find the maximum and minimum
-        # biggest = max(total)
-        # smallest = min(total)
-        # # apply normalisation function`
-        # for i in range(0, len(batch_out)):
-        #     for j in range(0, len(batch_out[i])):
-        #         batch_out[i][j] = (batch_out[i][j] -
-        #                            smallest) / (biggest - smallest)
-        #
-        # input_vectors = copy.deepcopy(batch_out)
-
-        # hidden layers
         batch_out = []
 
         for l in range(0, self.layers):
@@ -229,24 +168,24 @@ class NN:
 
         return (batch_out)
 
-    def loss(self, hyperparameters):
+    def loss(self, hyperparameters, train_inputs, train_outputs):
         error = 0
-        result = self.forward_propagate(hyperparameters, self.train_inputs)
+        result = self.forward_propagate(hyperparameters, train_inputs)
         # print(result)
         for i in range(0, len(result)):
             for j in range(0, len(result[i])):
-                error += (result[i][j] - self.train_outputs[i][j])**2
+                error += (result[i][j] - train_outputs[i][j])**2
         # diff = self.train_outputs - self.run(c, w, self.train_inputs)
         # error = np.dot(diff, diff)
         return (error)
 
-    def SPC_gradient(self, l, j, k, n):
+    def SPC_gradient(self, l, j, k, n, train_inputs, train_outputs):
         up = copy.deepcopy(self.spc)
         up[l][j][k][n] += self.dc
         down = copy.deepcopy(self.spc)
         down[l][j][k][n] -= self.dc
-        gradient = (self.loss(up) -
-                    self.loss(down)) / (2 * self.dc)
+        gradient = (self.loss(up, train_inputs, train_outputs) -
+                    self.loss(down, train_inputs, train_outputs)) / (2 * self.dc)
 
         return ([gradient, l, j, k, n])
 
@@ -254,7 +193,7 @@ class NN:
         self.spc[results[1]][results[2]][results[3]
                                          ][results[4]] += -self.learning_rate * results[0]
 
-    def backpropagate(self):
+    def backpropagate(self, train_inputs, train_outputs):
         pool = mp.Pool()
         # we compute the gradient for each parameter and use stochastic gradient descent
         for l in range(0, self.layers):
@@ -264,12 +203,102 @@ class NN:
                     for n in range(0, 5):
                         # for g in range(0, self.grids):
                         pool.apply_async(self.SPC_gradient,
-                                         args=(l, j, k, n), callback=self.modify_spc)
+                                         args=(l, j, k, n, train_inputs, train_outputs), callback=self.modify_spc)
 
         pool.close()
         pool.join()
 
-    def train(self, tolerance=0.01, preload_hyperparameters=None):
+    def train(self, sub_batch_size=10, tolerance=0.01, preload_hyperparameters=None):
+        batched_inputs = []
+        batched_outputs = []
+
+        #divide up the training data into batches of size sub_batch_size
+        i = 0
+        while i < self.N:
+            this_batch_inputs = []
+            this_batch_outputs = []
+            for j in range(0, sub_batch_size):
+                this_batch_inputs.append(self.train_inputs[i])
+                this_batch_outputs.append(self.train_outputs[i])
+                i = i + 1
+                if i >= self.N:
+                    break
+            batched_inputs.append(this_batch_inputs)
+            batched_outputs.append(this_batch_outputs)
+
+        if preload_hyperparameters != None:
+            self.spc = preload_hyperparameters
+
+        self.bench = self.loss(self.spc, self.train_inputs, self.train_outputs)
+        print("Benchmark Loss: ", self.bench)
+
+        #now we train bit by bit
+        num_minibatches = len(batched_inputs)
+
+        #we multithread the training of all batches:
+
+        self.new = self.loss(self.spc, self.train_inputs, self.train_outputs)
+        print("New loss: ", self.new)
+        improvement = self.new - self.bench
+        self.bench = self.new
+        self.epoch = 1
+        prev_lr = self.learning_rate
+        if improvement > 0:
+            self.learning_rate = self.learning_rate * 1.01
+        threading.Thread(target=self.log).start()
+
+        #threading.Thread(target=self.manager).start()
+        self.epoch = 1
+
+        while self.pause == False:
+            print("======Current Epoch: ", self.epoch, "=======================")
+
+            for n in range(0,  num_minibatches):
+                self.backpropagate(batched_inputs[n], batched_outputs[n])
+
+
+            # we have advanced forwards in epochs, so we can make updates to learning_rate
+            self.new = self.loss(self.spc, self.train_inputs, self.train_outputs)
+            print("Loss: ", self.new)
+            new_improvement = self.new - self.bench
+            if self.new >= self.bench:
+                #stayed same or got worse:
+                self.learning_rate = self.learning_rate / 1.3
+            else:
+
+                if new_improvement > improvement:
+                    #we are on the right trajectory
+                    if self.learning_rate < prev_lr:
+                        #if we increased the learning rate and got better performance, we do it again
+                        self.learning_rate = self.learning_rate * 0.98
+                    elif self.learning_rate > prev_lr:
+                        self.learning_rate = self.learning_rate * 1.01
+                if new_improvement < improvement:
+                    if self.learning_rate < prev_lr:
+                        self.learning_rate = self.learning_rate * 1.01
+                    elif self.learning_rate > prev_lr:
+                        self.learning_rate = self.learning_rate * 0.97
+                #self.learning_rate += self.learning_rate**3 * (new_improvement - improvement)/ (self.learning_rate - prev_lr)
+
+            #update our bench to new
+            self.bench = self.new
+            improvement = new_improvement
+            prev_lr = self.learning_rate
+
+            self.epoch += 1
+
+    def manager(self):
+        self.new = self.loss(self.spc, self.train_inputs, self.train_outputs)
+        print("New loss: ", self.new)
+        if self.new >= self.bench:
+            self.learning_rate = self.learning_rate / 1.3
+        else:
+            self.learning_rate = self.learning_rate * 1.008
+        self.bench = self.new
+
+
+
+    def train2(self, tolerance=0.01, preload_hyperparameters=None):
 
         if preload_hyperparameters != None:
             self.spc = preload_hyperparameters
@@ -303,7 +332,7 @@ class NN:
                         #if we increased the learning rate and got better performance, we do it again
                         self.learning_rate = self.learning_rate * 0.98
                     elif self.learning_rate > prev_lr:
-                        self.learning_rate = self.learning_rate * 1.01
+                        self.learning_rate = self.learning_rate * 1.1
                 if new_improvement < improvement:
                     if self.learning_rate < prev_lr:
                         self.learning_rate = self.learning_rate * 1.01
