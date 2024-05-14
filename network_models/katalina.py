@@ -7,7 +7,7 @@
 import math
 import numpy as np
 import random
-import splines
+
 import copy
 import multiprocessing as mp
 import threading
@@ -45,7 +45,7 @@ class NN:
             for j in range(0, structure[l]):
                 col = []
                 for k in range(0, structure[l+1]):
-                    col.append(np.random.normal(0, 0.1, size=(5)))
+                    col.append(np.random.normal(0, 0.5, size=(5)))
 
                 this_layer.append(col)
 
@@ -169,6 +169,17 @@ class NN:
         return (batch_out)
 
     def loss(self, hyperparameters, train_inputs, train_outputs):
+        error = 0
+        result = self.forward_propagate(hyperparameters, train_inputs)
+        # print(result)
+        for i in range(0, len(result)):
+            for j in range(0, len(result[i])):
+                error += (result[i][j] - train_outputs[i][j])**2
+        # diff = self.train_outputs - self.run(c, w, self.train_inputs)
+        # error = np.dot(diff, diff)
+        return (error)
+
+    def TOTALLOSS(self, hyperparameters, train_inputs, train_outputs):
         error = 0
         result = self.forward_propagate(hyperparameters, train_inputs)
         # print(result)

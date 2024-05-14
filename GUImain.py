@@ -1,7 +1,7 @@
 #GUI main.py using tkinter
 from tkinter import *
 import threading
-import katalina as K
+from network_models import katalina, splines
 import random
 import math
 import matplotlib.pyplot as plt
@@ -33,7 +33,7 @@ class GUI:
             this_output = math.exp(math.sin(x1**2 + x2 ** 2) + math.sin(x3**2 + x4**2))
             Y.append([this_output])
 
-        self.AI = K.NN(structure, train_inputs=X, train_outputs=Y)
+        self.AI = katalina.NN(structure, train_inputs=X, train_outputs=Y)
         #global the data
         self.X = X
         self.Y = Y
