@@ -26,7 +26,7 @@ def run():
                 print(error)
                 break
 
-        print("finished reading data")
+        #print("finished reading data")
         return (T, tL)
 
     # initial data

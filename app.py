@@ -1,16 +1,28 @@
+#the main application with GUI in QT
 import sys
 
-from PyQt5.QtWidgets import (
-    QApplication, QDialog, QMainWindow, QMessageBox
-)
-from PyQt5.uic import loadUi
-from PyQt5 import QtCore, QtGui, QtWidgets
+try:
+    from PyQt5.QtWidgets import (
+        QApplication, QDialog, QMainWindow, QMessageBox
+    )
+    from PyQt5.uic import loadUi
+    from PyQt5 import QtCore, QtGui, QtWidgets
+except:
+    print("missing pyqt5 dependency. Please install it")
 
+import multiprocessing as mp
+import threading
+import os
 
+try:
+    import matplotlib.pyplot as plt
+except:
+    print("missing matplotlib")
 
 class Window(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.model_inputs, self.model_outputs = self.load_data()
         self.setupUi(self)
 
     def setupUi(self, Frame):
@@ -69,6 +81,9 @@ class Window(QMainWindow):
 
         self.Shape_entry = QtWidgets.QLineEdit(self.gridLayoutWidget)
         self.Shape_entry.setObjectName("Shape_entry")
+        input_dim = str(len(self.model_inputs[0]))
+        output_dim = str(len(self.model_outputs[0]))
+        self.Shape_entry.setText(input_dim + "," + output_dim)
         self.Layout.addWidget(self.Shape_entry, 1, 2, 1, 1)
 
         self.LossTolerance_entry = QtWidgets.QLineEdit(self.gridLayoutWidget)
@@ -78,6 +93,7 @@ class Window(QMainWindow):
 
         self.Batchsize_entry = QtWidgets.QLineEdit(self.gridLayoutWidget)
         self.Batchsize_entry.setObjectName("Batchsize_entry")
+        self.Batchsize_entry.setText("20")
         self.Layout.addWidget(self.Batchsize_entry, 4, 2, 1, 1)
 
         self.Resume_button = QtWidgets.QPushButton(self.gridLayoutWidget)
@@ -92,15 +108,21 @@ class Window(QMainWindow):
 
         self.Testdrive_button = QtWidgets.QPushButton(self.gridLayoutWidget)
         self.Testdrive_button.setObjectName("Testdrive_button")
+        self.Testdrive_button.clicked.connect(self.test_drive)
         self.Layout.addWidget(self.Testdrive_button, 7, 0, 1, 1)
         self.Plot_button = QtWidgets.QPushButton(self.gridLayoutWidget)
         self.Plot_button.setObjectName("Plot_button")
+        self.Plot_button.clicked.connect(self.graph)
         self.Layout.addWidget(self.Plot_button, 7, 2, 1, 1)
+        self.Kill_button = QtWidgets.QPushButton(self.gridLayoutWidget)
+        self.Kill_button.setObjectName("Suicide")
+        self.Kill_button.clicked.connect(self.suicide)
+        self.Layout.addWidget(self.Kill_button, 8, 2, 1, 1)
 
         spacerItem1 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         spacerItem = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
-        self.Layout.addItem(spacerItem1, 8, 3, 1, 1)
-        self.Layout.addItem(spacerItem, 8, 0, 1, 1)
+        self.Layout.addItem(spacerItem1, 9, 3, 1, 1)
+        self.Layout.addItem(spacerItem, 9, 0, 1, 1)
 
         self.retranslateUi(Frame)
         QtCore.QMetaObject.connectSlotsByName(Frame)
@@ -123,68 +145,131 @@ class Window(QMainWindow):
         self.comboBox.setToolTip(_translate("Frame", "Select different network designs. KAN_optimised and turboKAN are made according to the paper; Catherine is single grid cubic spline; Katalina does split minibatch training."))
         self.Testdrive_button.setText(_translate("Frame", "Testdrive"))
         self.Plot_button.setText(_translate("Frame", "Plot Training Progress"))
+        self.Kill_button.setText(_translate("Frame", "Kill"))
 
     def start_training(self):
+        def go():
         #firstly let's extract the user inputs
-        shape = str(self.Shape_entry.text())
-        try:
-            shape = shape.split(",")
-            structure = []
-            for i in shape:
-                structure.append(int(i))
-            print("Network shape: ", structure)
-        except ValueError:
-            print("Invalid input! Check your shape is formatted correctly")
-        except Exception as e:
-            print(e)
+            shape = str(self.Shape_entry.text())
+            try:
+                shape = shape.split(",")
+                structure = []
+                for i in shape:
+                    structure.append(int(i))
+                print("Network shape: ", structure)
+            except ValueError:
+                print("Invalid input! Check your shape is formatted correctly")
+            except Exception as e:
+                print(e)
 
-        #learning rate and loss tolerance are optional
-        lr = str(self.LearningRate_entry.text())
-        if lr != "":
-            lr = float(lr)
-        else:
-            lr = 0.001 #default value
+            #learning rate and loss tolerance are optional
+            lr = float(self.LearningRate_entry.text())
 
-        loss_tolerance = self.LossTolerance_entry.text()
-        if loss_tolerance != "":
-            loss_tolerance = float(loss_tolerance)
-        else:
-            loss_tolerance = 0.01
+            loss_tolerance = float(self.LossTolerance_entry.text())
 
-        model_type = str(self.comboBox.currentText())
+            self.model_type = str(self.comboBox.currentText())
 
-        self.model_inputs, self.model_outputs = self.load_data()
+            minibatch = int(self.Batchsize_entry.text())
 
-        if model_type == "Katalina":
-            print("Selected model: Katalina")
-            from network_models import katalina
-            self.AI = katalina.NN(structure, learning_rate=lr,
-                                  train_inputs=model_inputs, train_outputs=model_outputs)
-            print("Initialisation complete, now training...")
-            self.trained_hyperparameters = self.AI.train()
+            if self.model_type == "Katalina":
+                print("Selected model: Katalina")
+                from network_models import katalina
+                self.AI = katalina.NN(structure, learning_rate=lr,
+                                    train_inputs=self.model_inputs, train_outputs=self.model_outputs)
+                print("Initialisation complete, now training...")
+                self.trained_hyperparameters = self.AI.train(sub_batch_size=minibatch)
 
-        elif model_type == "TurboKAN1":
-            print("selected model: TurboKAN1")
+            elif self.model_type == "TurboKAN1":
+                print("selected model: TurboKAN1")
+                from network_models import turboKAN1
+                self.AI = turboKAN1.NN(structure, learning_rate=lr, order=3, grids=10,
+                                    train_inputs=self.model_inputs, train_outputs=self.model_outputs)
+                self.trained_hyperparameters = self.AI.train()
 
-        elif model_type == "KAN_optimised":
-            print("selected model: KAN_optimised")
+            elif self.model_type == "KAN_optimised":
+                print("selected model: KAN_optimised")
+                from network_models import KAN_optimised
+                self.AI = KAN_optimised.NN(structure, learning_rate=lr, order=3, grids=10,
+                                           train_inputs=self.model_inputs, train_outputs=self.model_outputs)
+                self.trained_hyperparameters = self.AI.train()
 
-        elif model_type == "Catherine":
-            print("Selected model: Catherine")
+            elif self.model_type == "Catherine":
+                print("Selected model: Catherine")
+                from network_models import catherine
+                self.AI = catherine.NN(structure, learning_rate=lr,
+                                    train_inputs=self.model_inputs, train_outputs=self.model_outputs)
+                print("Initialisation complete, now training...")
+                self.trained_hyperparameters = self.AI.train()
 
-        else:
-            print("Not implemented yet!")
+            else:
+                print("Not implemented yet!")
+
+        threading.Thread(target=go).start() #performs the training in a separate thread so as not to crash the main window.
 
     def resume(self):
         self.AI.pause = False
-        self.AI.train(preload_hyperparameters=self.trained_hyperparameters)
+        def go():
+            self.AI.train(preload_hyperparameters=self.trained_hyperparameters)
+        threading.Thread(target=go).start()
 
 
     def pause(self):
         self.AI.pause = True
+        self.trained_hyperparameters = self.AI.spc
 
     def run(self):
-        self.AI.forward_propagate(self.trained_hyperparameters, self.model_inputs, self.model_outputs)
+        #load production inputs
+
+        print("Reading data from test_inputs.csv")
+        X = []
+        with open("test_inputs.csv", "r") as f:
+            next_line = str(f.readline())
+            while next_line != "":
+                line = next_line.split(",")
+                this_x = []
+                for i in line:
+                    this_x.append(float(i))
+                X.append(this_x)
+                next_line = f.readline()
+
+        #let the AI work on our test inputs
+        def go():
+            print("Unseen data loaded, now computing")
+            output = 0
+            if self.model_type == "Katalina" or self.model_type == "Catherine":
+                self.trained_hyperparameters = self.AI.spc
+                output = self.AI.forward_propagate(self.trained_hyperparameters, X)
+
+            if self.model_type == "TurboKAN1" or self.model_type == "KAN_optimised":
+                c = self.AI.spc
+                w = self.AI.w
+                output = self.AI.forward_propagate(c, w, X)
+
+            print("Calculation complete, saving output")
+            with open("test_outputs.csv", "w") as f:
+                for i in range(0, len(X)):
+                    #looping through datapoints; i is datapoint
+                    string = str(output[i][0])
+                    if len(output[0]) > 1:
+                        for j in range(1, len(output[i])):
+                            #component wise
+                            string += "," + str(output[i][j])
+                    string += "\n"  #newline
+                    f.write(string)
+
+            print("Done, outputs saved to test_outputs.csv")
+
+        try:
+            threading.Thread(target=go).start()
+        except Exception as e:
+            print(e)
+
+    def graph(self):
+        def go():
+            os.system("python3 plot_training.py")
+        p = mp.Process(target=go).start()
+        #p.join()
+
 
     def load_data(self):
         X = []
@@ -213,8 +298,51 @@ class Window(QMainWindow):
 
         return(X, Y)
 
+    def suicide(self):
+        try:
+            self.AI.suicide = True
+            os.system("killall python3")
+            exit()
+        except Exception as e:
+            print(e)
+            pass
+
+    def test_drive(self):
+        try:
+            test_out = 0
+            if self.model_type == "Katalina" or self.model_type == "Catherine":
+                current_hyperparameters = self.AI.spc
+                test_out = self.AI.forward_propagate(current_hyperparameters, self.model_inputs)
+
+            if self.model_type == "TurboKAN1" or self.model_type == "KAN_optimised":
+                c = self.AI.spc
+                w = self.AI.w
+                test_out = []
+                test_out = self.AI.forward_propagate(c, w, self.model_inputs)
+
+
+            test_Y = []
+            for i in test_out:
+                test_Y.append(i[0])
+
+            test_X = []
+            for i in self.model_inputs:
+                test_X.append(i[0])
+
+            real_Y = []
+            for i in self.model_outputs:
+                real_Y.append(i[0])
+
+            fig = plt.Figure()
+            tests = plt.scatter(test_X, test_Y)
+            real = plt.scatter(test_X, real_Y)
+            plt.show()
+        except Exception as e:
+            print(e)
+
 
 if __name__ == "__main__":
+    os.system("rm history.csv")
     app = QApplication(sys.argv)
     win = Window()
     win.show()

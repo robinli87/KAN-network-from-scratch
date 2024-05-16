@@ -29,6 +29,7 @@ class NN:
         self.dc = 0.00001
         self.learning_rate = learning_rate
         self.knots = np.linspace(0, 1, grids)
+        self.pause = False
 
         # construct the the net by initilising its nodes and edges
         self.nodes = []
@@ -50,7 +51,7 @@ class NN:
         # w[l][j][k]
         for l in range(0, self.layers):
             self.w.append(np.random.normal(
-                0, 1, size=(structure[l], structure[l+1])))
+                0, 0.2, size=(structure[l], structure[l+1])))
             self.edges.append(np.zeros((structure[l], structure[l+1])))
 
         self.dc = 0.00001
@@ -79,14 +80,16 @@ class NN:
         # we need to store the free coefficients and total coefficients
 
     def log(self):
-        time.sleep(1)
         e = 0
         while True:
             with open("history.csv", "a") as history:
-                history.write(str(e) + "," + str(self.bench) + "\n")
-            e = e+1
+                try:
+                    history.write(str(e) + "," + str(self.bench) + "\n")
+                except Exception as error:
+                    print(error)
 
-            time.sleep(0.5)
+            e = e+1
+            time.sleep(0.1)
 
     def spline(self, x, free_coefficients):
         # alles = sp.fill_coefficients(free_coefficients, self.knots)
@@ -292,13 +295,13 @@ class NN:
         pool.close()
         pool.join()
 
-    def train(self):
+    def train(self, preload_hyperparameters=None):
         self.bench = self.loss(self.spc, self.w)
         self.backpropagate()
         new = self.loss(self.spc, self.w)
         epoch = 1
 
-        while (new < self.bench) or (epoch < 10000):
+        while self.pause == False:
             if (new >= self.bench):
                 self.learning_rate = self.learning_rate / 2
                 print(self.learning_rate)
@@ -309,8 +312,5 @@ class NN:
             self.backpropagate()
             new = self.loss(self.spc, self.w)
             epoch += 1
-
-            if epoch > 1000:
-                break  # quit if we are taking too long
 
         return (self.spc, self.w)

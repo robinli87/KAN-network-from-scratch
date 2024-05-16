@@ -45,7 +45,7 @@ class NN:
             for j in range(0, structure[l]):
                 col = []
                 for k in range(0, structure[l+1]):
-                    col.append(np.random.normal(0, 0.5, size=(5)))
+                    col.append(np.random.normal(0, 0.2, size=(5)))
 
                 this_layer.append(col)
 

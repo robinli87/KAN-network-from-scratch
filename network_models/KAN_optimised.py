@@ -9,7 +9,7 @@ import splines
 import copy
 import multiprocessing as mp
 import threading
-
+import time
 sp = splines.spline_tools()
 
 
@@ -56,6 +56,8 @@ class NN:
         self.dw = 0.000001
         self.pause = False
 
+        threading.Thread(target=self.logging).start()
+
         # output from activation
 
         # or, this can be simplified by focusing on one forward node at a time, gathering outputs from previous edges and nodes
@@ -75,6 +77,26 @@ class NN:
 
         # now we need to initialise the activation functions, i.e. splines
         # we need to store the free coefficients and total coefficients
+
+    def logging(self):
+        time.sleep(1)
+        e = 0
+        while True:
+            try:
+                with open("history.csv", "a") as history:
+                    history.write(str(e) + "," + str(self.bench) + "\n")
+                e = e+1
+
+
+            except AttributeError:
+                print("waiting")
+                time.sleep(0.2)
+
+            except Exception as e:
+                print("Failed to log, reason: ", e)
+
+            time.sleep(0.2)
+
 
     def spline(self, x, free_coefficients):
         # alles = sp.fill_coefficients(free_coefficients, self.knots)
@@ -307,8 +329,9 @@ class NN:
         pool.close()
         pool.join()
 
-    def train(self):
+    def train(self, preload_hyperparameters=None):
         bench = self.loss(self.spc, self.w)
+        self.bench = bench
         self.backpropagate()
         new = self.loss(self.spc, self.w)
         epoch = 1
@@ -321,6 +344,7 @@ class NN:
                 self.learning_rate = self.learning_rate * 1.005
             print("Loss: ", new)
             bench = new
+            self.bench = bench
             self.backpropagate()
             new = self.loss(self.spc, self.w)
             epoch += 1
