@@ -1,7 +1,7 @@
 #GUI main.py using tkinter
 from tkinter import *
 import threading
-from network_models import katalina, splines
+from network_models import katalina, splines, KAN_optimised
 import random
 import math
 import matplotlib.pyplot as plt
@@ -33,7 +33,7 @@ class GUI:
             this_output = math.exp(math.sin(x1**2 + x2 ** 2) + math.sin(x3**2 + x4**2))
             Y.append([this_output])
 
-        self.AI = katalina.NN(structure, train_inputs=X, train_outputs=Y)
+        self.AI = KAN_optimised.NN(structure, train_inputs=X, train_outputs=Y)
         #global the data
         self.X = X
         self.Y = Y
@@ -42,7 +42,7 @@ class GUI:
     def start(self):
         #prepare data
         def run():
-            results = self.AI.train(tolerance=0.02)
+            results = self.AI.train()
             return(results)
 
         p = threading.Thread(target=run).start()

@@ -54,6 +54,7 @@ class NN:
 
         self.dc = 0.000001
         self.dw = 0.000001
+        self.pause = False
 
         # output from activation
 
@@ -312,7 +313,7 @@ class NN:
         new = self.loss(self.spc, self.w)
         epoch = 1
 
-        while (new < bench) or (epoch < 10000):
+        while self.pause == False:
             if (new >= bench):
                 self.learning_rate = self.learning_rate / 2
                 print(self.learning_rate)
