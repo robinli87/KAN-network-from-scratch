@@ -13,6 +13,8 @@ except:
 import multiprocessing as mp
 import threading
 import os
+import copy
+import collections
 
 try:
     import matplotlib.pyplot as plt
@@ -235,6 +237,7 @@ class Window(QMainWindow):
                 print("Not implemented yet!")
 
         threading.Thread(target=go).start() #performs the training in a separate thread so as not to crash the main window.
+        threading.Thread(target=self.log_parameters).start()
 
     def resume(self):
         self.AI.pause = False
@@ -337,6 +340,29 @@ class Window(QMainWindow):
             print(e)
             pass
 
+    def log_parameters(self):
+        while True:
+            try:
+                p = copy.deepcopy(self.AI.spc)#extract parame ters
+                epoch = 0
+                while True:
+                    new_p = copy.deepcopy(self.AI.spc)
+
+                    if new_p[0][0][0][0] != p[0][0][0][0]:
+                        with open("parameter_log.csv", "a") as f:
+                            f.write(str(epoch))
+                            for i in new_p:
+                                for j in i:
+                                    for k in j:
+                                        for l in k:
+                                            f.write("," + str(l))
+                            f.write("\n")
+                            p = copy.deepcopy(new_p)
+                            epoch += 1
+
+            except Exception as e:
+                print(e)
+
     def test_drive(self):
         try:
             test_out = 0
@@ -373,6 +399,7 @@ class Window(QMainWindow):
 
 if __name__ == "__main__":
     os.system("rm history.csv")
+    os.system("rm parameter_log.csv")
     app = QApplication(sys.argv)
     win = Window()
     win.show()
