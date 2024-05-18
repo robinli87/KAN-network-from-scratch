@@ -1,6 +1,8 @@
 # Katalina.py an improved version of Catherine which considers batch training.
 
 # single KAN but multithreaded and optimised
+#implement momentum term
+
 
 # KAN network
 
@@ -201,8 +203,13 @@ class NN:
         return ([gradient, l, j, k, n])
 
     def modify_spc(self, results):
-        self.spc[results[1]][results[2]][results[3]
-                                         ][results[4]] += -self.learning_rate * results[0]
+        l = results[1]
+        j = results[2]
+        k = results[3]
+        n = results[4]
+        self.spc[l][j][k][n] -= self.learning_rate * results[0]
+        self.spc[l][j][k][n] += self.momentum * self.prev_gradient[l][j][k][n]
+        self.prev_gradient[l][j][k][n] = results[0]
 
     def backpropagate(self, train_inputs, train_outputs):
         pool = mp.Pool()
@@ -247,6 +254,20 @@ class NN:
         num_minibatches = len(batched_inputs)
 
         #we multithread the training of all batches:
+
+        #prepare momentum term:
+        self.momentum = 0.001
+        self.prev_gradient = []
+        for l in range(0, self.layers):
+            this_layer = []
+            for j in range(0, self.structure[l]):
+                col = []
+                for k in range(0, self.structure[l+1]):
+                    col.append(np.zeros((5)))
+
+                this_layer.append(col)
+
+            self.prev_gradient.append(this_layer)
 
         self.new = self.loss(self.spc, self.train_inputs, self.train_outputs)
         print("New loss: ", self.new)

@@ -233,6 +233,15 @@ class Window(QMainWindow):
                 print("Initialisation complete, now training...")
                 self.trained_hyperparameters = self.AI.train()
 
+            elif self.model_type == "Lerochka":
+                print("Selected model: Lerochka")
+                from network_models import lerochka
+                minibatch = int(self.Batchsize_entry.text())
+                self.AI = lerochka.NN(structure, learning_rate=lr,
+                                    train_inputs=self.model_inputs, train_outputs=self.model_outputs)
+                print("Initialisation complete, now training...")
+                self.trained_hyperparameters = self.AI.train(sub_batch_size=minibatch)
+
             else:
                 print("Not implemented yet!")
 
