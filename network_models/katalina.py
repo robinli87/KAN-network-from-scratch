@@ -55,26 +55,6 @@ class NN:
         self.dc = 0.000001
         self.dw = 0.000001
 
-
-    def log(self):
-        time.sleep(1)
-        e = 0
-        while True:
-            try:
-                with open("history.csv", "a") as history:
-                    history.write(str(e) + "," + str(self.bench) + "\n")
-                e = e+1
-
-
-            except AttributeError:
-                print("waiting")
-                time.sleep(0.2)
-
-            except Exception as e:
-                print("Failed to log, reason: ", e)
-
-            time.sleep(0.2)
-
     def spline(self, x, coefficients):
         # alles = sp.fill_coefficients(free_coefficients, self.knots)
         S = 0
@@ -256,7 +236,7 @@ class NN:
         prev_lr = self.learning_rate
         if improvement > 0:
             self.learning_rate = self.learning_rate * 1.01
-        threading.Thread(target=self.log).start()
+        #threading.Thread(target=self.log).start()
 
         #threading.Thread(target=self.manager).start()
         self.epoch = 1
@@ -266,8 +246,6 @@ class NN:
 
             for n in range(0,  num_minibatches):
                 self.backpropagate(batched_inputs[n], batched_outputs[n])
-
-
             # we have advanced forwards in epochs, so we can make updates to learning_rate
             self.new = self.loss(self.spc, self.train_inputs, self.train_outputs)
             print("Loss: ", self.new)
@@ -360,6 +338,3 @@ class NN:
             self.epoch += 1
 
         return(self.spc)
-
-
-

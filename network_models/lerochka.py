@@ -1,7 +1,7 @@
 # Katalina.py an improved version of Catherine which considers batch training.
 
 # single KAN but multithreaded and optimised
-#implement momentum term
+# implement momentum term
 
 
 # KAN network
@@ -28,6 +28,7 @@ class NN:
         self.train_inputs = train_inputs
         self.train_outputs = train_outputs
         self.N = len(train_inputs)
+        print("Size of known data: ", self.N)
         self.order = order
         self.dw = 0.00001
         self.dc = 0.00001
@@ -42,12 +43,13 @@ class NN:
         self.spc = []
         self.edges = []
         # w[l][j][k]
+        xavier = (6 / (structure[0] + structure[-1])) ** 0.5
         for l in range(0, self.layers):
             this_layer = []
             for j in range(0, structure[l]):
                 col = []
                 for k in range(0, structure[l+1]):
-                    col.append(np.random.normal(0, 10/self.N, size=(5)))
+                    col.append(np.random.uniform(-xavier, xavier, size=(5)))
 
                 this_layer.append(col)
 
@@ -56,26 +58,6 @@ class NN:
 
         self.dc = 0.000001
         self.dw = 0.000001
-
-
-    def log(self):
-        time.sleep(1)
-        e = 0
-        while True:
-            try:
-                with open("history.csv", "a") as history:
-                    history.write(str(e) + "," + str(self.bench) + "\n")
-                e = e+1
-
-
-            except AttributeError:
-                print("waiting")
-                time.sleep(0.2)
-
-            except Exception as e:
-                print("Failed to log, reason: ", e)
-
-            time.sleep(0.2)
 
     def spline(self, x, coefficients):
         # alles = sp.fill_coefficients(free_coefficients, self.knots)
@@ -94,8 +76,7 @@ class NN:
 
     def activation(self, x, l, j, k, hyperparameters):
         # we want to use a specified local weight and spline coefficients so that we can observe effects of perturbation
-        p = hyperparameters[l][j][k][4] * self.silu(x
-                                                    ) + self.spline(x, hyperparameters[l][j][k])
+        p = hyperparameters[l][j][k][4] * self.silu(x) + self.spline(x, hyperparameters[l][j][k])
 
         return (p)
 
@@ -208,7 +189,7 @@ class NN:
         k = results[3]
         n = results[4]
         self.spc[l][j][k][n] -= self.learning_rate * results[0]
-        self.spc[l][j][k][n] += self.momentum * self.prev_gradient[l][j][k][n]
+        self.spc[l][j][k][n] -= self.momentum * self.prev_gradient[l][j][k][n]
         self.prev_gradient[l][j][k][n] = results[0]
 
     def backpropagate(self, train_inputs, train_outputs):
@@ -230,7 +211,7 @@ class NN:
         batched_inputs = []
         batched_outputs = []
 
-        #divide up the training data into batches of size sub_batch_size
+        # divide up the training data into batches of size sub_batch_size
         i = 0
         while i < self.N:
             this_batch_inputs = []
@@ -250,12 +231,12 @@ class NN:
         self.bench = self.loss(self.spc, self.train_inputs, self.train_outputs)
         print("Benchmark Loss: ", self.bench)
 
-        #now we train bit by bit
+        # now we train bit by bit
         num_minibatches = len(batched_inputs)
 
-        #we multithread the training of all batches:
+        # we multithread the training of all batches:
 
-        #prepare momentum term:
+        # prepare momentum term:
         self.momentum = 0.001
         self.prev_gradient = []
         for l in range(0, self.layers):
@@ -277,31 +258,33 @@ class NN:
         prev_lr = self.learning_rate
         if improvement > 0:
             self.learning_rate = self.learning_rate * 1.01
-        threading.Thread(target=self.log).start()
 
-        #threading.Thread(target=self.manager).start()
+        #threading.Thread(target=self.log).start()
+
+        # threading.Thread(target=self.manager).start()
         self.epoch = 1
 
         while self.pause == False:
-            print("======Current Epoch: ", self.epoch, "=======================")
+            print("======Current Epoch: ", self.epoch,
+                  "=======================")
 
             for n in range(0,  num_minibatches):
                 self.backpropagate(batched_inputs[n], batched_outputs[n])
 
-
             # we have advanced forwards in epochs, so we can make updates to learning_rate
-            self.new = self.loss(self.spc, self.train_inputs, self.train_outputs)
+            self.new = self.loss(
+                self.spc, self.train_inputs, self.train_outputs)
             print("Loss: ", self.new)
             new_improvement = self.new - self.bench
             if self.new >= self.bench:
-                #stayed same or got worse:
+                # stayed same or got worse:
                 self.learning_rate = self.learning_rate / 1.3
             else:
 
                 if new_improvement > improvement:
-                    #we are on the right trajectory
+                    # we are on the right trajectory
                     if self.learning_rate < prev_lr:
-                        #if we increased the learning rate and got better performance, we do it again
+                        # if we increased the learning rate and got better performance, we do it again
                         self.learning_rate = self.learning_rate * 0.98
                     elif self.learning_rate > prev_lr:
                         self.learning_rate = self.learning_rate * 1.01
@@ -310,9 +293,9 @@ class NN:
                         self.learning_rate = self.learning_rate * 1.01
                     elif self.learning_rate > prev_lr:
                         self.learning_rate = self.learning_rate * 0.97
-                #self.learning_rate += self.learning_rate**3 * (new_improvement - improvement)/ (self.learning_rate - prev_lr)
+                # self.learning_rate += self.learning_rate**3 * (new_improvement - improvement)/ (self.learning_rate - prev_lr)
 
-            #update our bench to new
+            # update our bench to new
             self.bench = self.new
             improvement = new_improvement
             prev_lr = self.learning_rate
@@ -327,8 +310,6 @@ class NN:
         else:
             self.learning_rate = self.learning_rate * 1.008
         self.bench = self.new
-
-
 
     def train2(self, tolerance=0.01, preload_hyperparameters=None):
 
@@ -345,7 +326,7 @@ class NN:
             self.learning_rate = self.learning_rate * 1.01
         threading.Thread(target=self.log).start()
 
-        #threading.Thread(target=self.manager).start()
+        # threading.Thread(target=self.manager).start()
 
         while self.pause == False:
             self.backpropagate()
@@ -354,14 +335,14 @@ class NN:
             # we have advanced forwards in epochs, so we can make updates to learning_rate
             new_improvement = new - self.bench
             if new >= self.bench:
-                #stayed same or got worse:
+                # stayed same or got worse:
                 self.learning_rate = self.learning_rate / 1.3
             else:
 
                 if new_improvement > improvement:
-                    #we are on the right trajectory
+                    # we are on the right trajectory
                     if self.learning_rate < prev_lr:
-                        #if we increased the learning rate and got better performance, we do it again
+                        # if we increased the learning rate and got better performance, we do it again
                         self.learning_rate = self.learning_rate * 0.98
                     elif self.learning_rate > prev_lr:
                         self.learning_rate = self.learning_rate * 1.1
@@ -370,17 +351,13 @@ class NN:
                         self.learning_rate = self.learning_rate * 1.01
                     elif self.learning_rate > prev_lr:
                         self.learning_rate = self.learning_rate * 0.97
-                #self.learning_rate += self.learning_rate**3 * (new_improvement - improvement)/ (self.learning_rate - prev_lr)
+                # self.learning_rate += self.learning_rate**3 * (new_improvement - improvement)/ (self.learning_rate - prev_lr)
 
-
-            #update our bench to new
+            # update our bench to new
             self.bench = new
             improvement = new_improvement
             prev_lr = self.learning_rate
 
             self.epoch += 1
 
-        return(self.spc)
-
-
-
+        return (self.spc)

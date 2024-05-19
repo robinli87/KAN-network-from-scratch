@@ -1,4 +1,4 @@
-#the main application with GUI in QT
+# the main application with GUI in QT
 import sys
 
 try:
@@ -21,6 +21,7 @@ try:
 except:
     print("missing matplotlib")
 
+
 class Window(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -37,8 +38,7 @@ class Window(QMainWindow):
         self.Layout.setContentsMargins(0, 0, 0, 0)
         self.Layout.setObjectName("Layout")
 
-
-        #group labels
+        # group labels
         self.label_2 = QtWidgets.QLabel(self.gridLayoutWidget)
         self.label_2.setObjectName("label_2")
         self.Layout.addWidget(self.label_2, 1, 0, 1, 1)
@@ -67,7 +67,7 @@ class Window(QMainWindow):
         self.label_7.setObjectName("label_7")
         self.Layout.addWidget(self.label_7, 6, 0, 1, 1)
 
-        #buttons
+        # buttons
         self.Start_button = QtWidgets.QPushButton(self.gridLayoutWidget)
         self.Start_button.setObjectName("Start_button")
         self.Start_button.clicked.connect(self.start_training)
@@ -101,7 +101,7 @@ class Window(QMainWindow):
         self.Kill_button.clicked.connect(self.suicide)
         self.Layout.addWidget(self.Kill_button, 10, 2, 1, 1)
 
-        #entries
+        # entries
         self.LearningRate_entry = QtWidgets.QLineEdit(self.gridLayoutWidget)
         self.LearningRate_entry.setObjectName("lineEdit")
         self.LearningRate_entry.setText("0.001")
@@ -143,9 +143,10 @@ class Window(QMainWindow):
         self.Order_entry.setText("10")
         self.Layout.addWidget(self.Order_entry, 6, 2, 1, 1)
 
-
-        spacerItem1 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
-        spacerItem = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        spacerItem1 = QtWidgets.QSpacerItem(
+            40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+        spacerItem = QtWidgets.QSpacerItem(
+            20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
         self.Layout.addItem(spacerItem1, 11, 3, 1, 1)
         self.Layout.addItem(spacerItem, 11, 0, 1, 1)
 
@@ -160,14 +161,17 @@ class Window(QMainWindow):
         self.label_5.setText(_translate("Frame", "Final loss tolerance"))
         self.Pause_button.setText(_translate("Frame", "Pause Training"))
         self.label_4.setText(_translate("Frame", "Batch Size"))
-        self.LossTolerance_entry.setToolTip(_translate("Frame", "The acceptable loss. The network stops training when this loss has been reached."))
+        self.LossTolerance_entry.setToolTip(_translate(
+            "Frame", "The acceptable loss. The network stops training when this loss has been reached."))
         self.label.setText(_translate("Frame", "Initial learning rate"))
         self.label_3.setText(_translate("Frame", "Select Model"))
         self.Resume_button.setText(_translate("Frame", "Resume Training"))
         self.Run_button.setText(_translate("Frame", "Run"))
         self.Shape_entry.setToolTip(_translate("Frame", "Example: 4, 2, 1"))
-        self.label_2.setToolTip(_translate("Frame", "The first number is dimension of input vector, last is dimension of output vector. Middle numbers correspond to size of hidden layers."))
-        self.comboBox.setToolTip(_translate("Frame", "Select different network designs. KAN_optimised and turboKAN are made according to the paper; Catherine is single grid cubic spline; Katalina does split minibatch training."))
+        self.label_2.setToolTip(_translate(
+            "Frame", "The first number is dimension of input vector, last is dimension of output vector. Middle numbers correspond to size of hidden layers."))
+        self.comboBox.setToolTip(_translate(
+            "Frame", "Select different network designs. KAN_optimised and turboKAN are made according to the paper; Catherine is single grid cubic spline; Katalina does split minibatch training."))
         self.Testdrive_button.setText(_translate("Frame", "Testdrive"))
         self.Plot_button.setText(_translate("Frame", "Plot Training Progress"))
         self.Kill_button.setText(_translate("Frame", "Kill"))
@@ -176,7 +180,7 @@ class Window(QMainWindow):
 
     def start_training(self):
         def go():
-        #firstly let's extract the user inputs
+            # firstly let's extract the user inputs
             shape = str(self.Shape_entry.text())
             try:
                 shape = shape.split(",")
@@ -189,23 +193,22 @@ class Window(QMainWindow):
             except Exception as e:
                 print(e)
 
-            #learning rate and loss tolerance are optional
+            # learning rate and loss tolerance are optional
             lr = float(self.LearningRate_entry.text())
 
             loss_tolerance = float(self.LossTolerance_entry.text())
 
             self.model_type = str(self.comboBox.currentText())
 
-
-
             if self.model_type == "Katalina":
                 print("Selected model: Katalina")
                 from network_models import katalina
                 minibatch = int(self.Batchsize_entry.text())
                 self.AI = katalina.NN(structure, learning_rate=lr,
-                                    train_inputs=self.model_inputs, train_outputs=self.model_outputs)
+                                      train_inputs=self.model_inputs, train_outputs=self.model_outputs)
                 print("Initialisation complete, now training...")
-                self.trained_hyperparameters = self.AI.train(sub_batch_size=minibatch)
+                self.trained_hyperparameters = self.AI.train(
+                    sub_batch_size=minibatch)
 
             elif self.model_type == "TurboKAN1":
                 print("selected model: TurboKAN1")
@@ -213,7 +216,7 @@ class Window(QMainWindow):
                 Order = int(self.Order_entry.text())
                 Grids = int(self.GridSize_entry.text())
                 self.AI = turboKAN1.NN(structure, learning_rate=lr, order=Order, grids=Grids,
-                                    train_inputs=self.model_inputs, train_outputs=self.model_outputs)
+                                       train_inputs=self.model_inputs, train_outputs=self.model_outputs)
                 self.trained_hyperparameters = self.AI.train()
 
             elif self.model_type == "KAN_optimised":
@@ -229,7 +232,7 @@ class Window(QMainWindow):
                 print("Selected model: Catherine")
                 from network_models import catherine
                 self.AI = catherine.NN(structure, learning_rate=lr,
-                                    train_inputs=self.model_inputs, train_outputs=self.model_outputs)
+                                       train_inputs=self.model_inputs, train_outputs=self.model_outputs)
                 print("Initialisation complete, now training...")
                 self.trained_hyperparameters = self.AI.train()
 
@@ -238,29 +241,32 @@ class Window(QMainWindow):
                 from network_models import lerochka
                 minibatch = int(self.Batchsize_entry.text())
                 self.AI = lerochka.NN(structure, learning_rate=lr,
-                                    train_inputs=self.model_inputs, train_outputs=self.model_outputs)
+                                      train_inputs=self.model_inputs, train_outputs=self.model_outputs)
                 print("Initialisation complete, now training...")
-                self.trained_hyperparameters = self.AI.train(sub_batch_size=minibatch)
+                self.trained_hyperparameters = self.AI.train(
+                    sub_batch_size=minibatch)
 
             else:
                 print("Not implemented yet!")
 
-        threading.Thread(target=go).start() #performs the training in a separate thread so as not to crash the main window.
+        # performs the training in a separate thread so as not to crash the main window.
+        threading.Thread(target=go).start()
         threading.Thread(target=self.log_parameters).start()
+        threading.Thread(target=self.log_loss).start()
 
     def resume(self):
         self.AI.pause = False
+
         def go():
             self.AI.train(preload_hyperparameters=self.trained_hyperparameters)
         threading.Thread(target=go).start()
-
 
     def pause(self):
         self.AI.pause = True
         self.trained_hyperparameters = self.AI.spc
 
     def run(self):
-        #load production inputs
+        # load production inputs
 
         print("Reading data from test_inputs.csv")
         X = []
@@ -274,13 +280,14 @@ class Window(QMainWindow):
                 X.append(this_x)
                 next_line = f.readline()
 
-        #let the AI work on our test inputs
+        # let the AI work on our test inputs
         def go():
             print("Unseen data loaded, now computing")
             output = 0
-            if self.model_type == "Katalina" or self.model_type == "Catherine":
+            if self.model_type == "Katalina" or self.model_type == "Catherine" or self.model_type == "Lerochka":
                 self.trained_hyperparameters = self.AI.spc
-                output = self.AI.forward_propagate(self.trained_hyperparameters, X)
+                output = self.AI.forward_propagate(
+                    self.trained_hyperparameters, X)
 
             if self.model_type == "TurboKAN1" or self.model_type == "KAN_optimised":
                 c = self.AI.spc
@@ -290,13 +297,13 @@ class Window(QMainWindow):
             print("Calculation complete, saving output")
             with open("test_outputs.csv", "w") as f:
                 for i in range(0, len(X)):
-                    #looping through datapoints; i is datapoint
+                    # looping through datapoints; i is datapoint
                     string = str(output[i][0])
                     if len(output[0]) > 1:
                         for j in range(1, len(output[i])):
-                            #component wise
+                            # component wise
                             string += "," + str(output[i][j])
-                    string += "\n"  #newline
+                    string += "\n"  # newline
                     f.write(string)
 
             print("Done, outputs saved to test_outputs.csv")
@@ -310,8 +317,7 @@ class Window(QMainWindow):
         def go():
             os.system("python3 plot_training.py")
         p = mp.Process(target=go).start()
-        #p.join()
-
+        # p.join()
 
     def load_data(self):
         X = []
@@ -338,7 +344,7 @@ class Window(QMainWindow):
                 Y.append(this_y)
                 next_line = f.readline()
 
-        return(X, Y)
+        return (X, Y)
 
     def suicide(self):
         try:
@@ -352,7 +358,7 @@ class Window(QMainWindow):
     def log_parameters(self):
         while True:
             try:
-                p = copy.deepcopy(self.AI.spc)#extract parame ters
+                p = copy.deepcopy(self.AI.spc)  # extract parame ters
                 epoch = 0
                 while True:
                     new_p = copy.deepcopy(self.AI.spc)
@@ -370,21 +376,40 @@ class Window(QMainWindow):
                             epoch += 1
 
             except Exception as e:
-                print(e)
+                with open("errorlog.txt", "a") as f:
+                    f.write(str(e))
+
+    def log_loss(self):
+        while True:
+            try:
+                L = self.AI.bench
+                epoch = 0
+                while True:
+                    new_L = self.AI.bench
+                    if new_L != L:
+                        #there has been an update
+                        with open("history.csv", "a") as f:
+                            f.write(str(epoch) + "," + str(L) + "\n")
+
+                        epoch += 1
+                        L = new_L
+            except Exception as e:
+                with open("errorlog.txt", "a") as f:
+                    f.write(str(e))
 
     def test_drive(self):
         try:
             test_out = 0
-            if self.model_type == "Katalina" or self.model_type == "Catherine":
+            if self.model_type == "Katalina" or self.model_type == "Catherine" or self.model_type == "Lerochka":
                 current_hyperparameters = self.AI.spc
-                test_out = self.AI.forward_propagate(current_hyperparameters, self.model_inputs)
+                test_out = self.AI.forward_propagate(
+                    current_hyperparameters, self.model_inputs)
 
             if self.model_type == "TurboKAN1" or self.model_type == "KAN_optimised":
                 c = self.AI.spc
                 w = self.AI.w
                 test_out = []
                 test_out = self.AI.forward_propagate(c, w, self.model_inputs)
-
 
             test_Y = []
             for i in test_out:
