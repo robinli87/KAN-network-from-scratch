@@ -117,6 +117,19 @@ class NN:
 
         return (out)
 
+    def normalise(self, matrix):
+        biggest = max(map(max, matrix))
+        smallest = min(map(min, matrix))
+        def hardmax(x):
+            n = (x - smallest) / (biggest - smallest)
+            return(n)
+        for i in range(0, len(matrix)):
+            for j in range(0, len(matrix[i])):
+                matrix[i][j] = hardmax(matrix[i][j])
+
+        return(matrix)
+
+
     def forward_propagate(self, hyperparameters, input_vectors):
         batch_size = len(input_vectors)
         batch_out = []
@@ -146,6 +159,8 @@ class NN:
 
             # now we want to change the scale of the grids
             # self.knots = np.linspace(min(total), max(total), self.grids)
+
+            batch_out = self.normalise(batch_out)
 
             input_vectors = copy.deepcopy(batch_out)
 
@@ -189,7 +204,7 @@ class NN:
         k = results[3]
         n = results[4]
         self.spc[l][j][k][n] -= self.learning_rate * results[0]
-        self.spc[l][j][k][n] -= self.momentum * self.prev_gradient[l][j][k][n]
+        self.spc[l][j][k][n] -= self.learning_rate * self.momentum * self.prev_gradient[l][j][k][n]
         self.prev_gradient[l][j][k][n] = results[0]
 
     def backpropagate(self, train_inputs, train_outputs):
@@ -207,7 +222,7 @@ class NN:
         pool.close()
         pool.join()
 
-    def train(self, sub_batch_size=10, tolerance=0.01, preload_hyperparameters=None):
+    def train(self, sub_batch_size=10, tolerance=0.01, preload_hyperparameters=None, momentum=0.2):
         batched_inputs = []
         batched_outputs = []
 
@@ -237,7 +252,7 @@ class NN:
         # we multithread the training of all batches:
 
         # prepare momentum term:
-        self.momentum = 0.001
+        self.momentum = momentum
         self.prev_gradient = []
         for l in range(0, self.layers):
             this_layer = []
@@ -275,30 +290,30 @@ class NN:
             self.new = self.loss(
                 self.spc, self.train_inputs, self.train_outputs)
             print("Loss: ", self.new)
-            new_improvement = self.new - self.bench
-            if self.new >= self.bench:
-                # stayed same or got worse:
-                self.learning_rate = self.learning_rate / 1.3
-            else:
-
-                if new_improvement > improvement:
-                    # we are on the right trajectory
-                    if self.learning_rate < prev_lr:
-                        # if we increased the learning rate and got better performance, we do it again
-                        self.learning_rate = self.learning_rate * 0.98
-                    elif self.learning_rate > prev_lr:
-                        self.learning_rate = self.learning_rate * 1.01
-                if new_improvement < improvement:
-                    if self.learning_rate < prev_lr:
-                        self.learning_rate = self.learning_rate * 1.01
-                    elif self.learning_rate > prev_lr:
-                        self.learning_rate = self.learning_rate * 0.97
-                # self.learning_rate += self.learning_rate**3 * (new_improvement - improvement)/ (self.learning_rate - prev_lr)
+            # new_improvement = self.new - self.bench
+            # if self.new >= self.bench:
+            #     # stayed same or got worse:
+            #     self.learning_rate = self.learning_rate / 1.3
+            # else:
+            #
+            #     if new_improvement > improvement:
+            #         # we are on the right trajectory
+            #         if self.learning_rate < prev_lr:
+            #             # if we increased the learning rate and got better performance, we do it again
+            #             self.learning_rate = self.learning_rate * 0.98
+            #         elif self.learning_rate > prev_lr:
+            #             self.learning_rate = self.learning_rate * 1.01
+            #     if new_improvement < improvement:
+            #         if self.learning_rate < prev_lr:
+            #             self.learning_rate = self.learning_rate * 1.01
+            #         elif self.learning_rate > prev_lr:
+            #             self.learning_rate = self.learning_rate * 0.97
+            #     # self.learning_rate += self.learning_rate**3 * (new_improvement - improvement)/ (self.learning_rate - prev_lr)
 
             # update our bench to new
             self.bench = self.new
-            improvement = new_improvement
-            prev_lr = self.learning_rate
+            # improvement = new_improvement
+            # prev_lr = self.learning_rate
 
             self.epoch += 1
 

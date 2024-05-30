@@ -67,6 +67,10 @@ class Window(QMainWindow):
         self.label_7.setObjectName("label_7")
         self.Layout.addWidget(self.label_7, 6, 0, 1, 1)
 
+        self.label_8 = QtWidgets.QLabel(self.gridLayoutWidget)
+        self.label_8.setObjectName("label_8")
+        self.Layout.addWidget(self.label_8, 5, 3, 1, 1)
+
         # buttons
         self.Start_button = QtWidgets.QPushButton(self.gridLayoutWidget)
         self.Start_button.setObjectName("Start_button")
@@ -143,6 +147,12 @@ class Window(QMainWindow):
         self.Order_entry.setText("10")
         self.Layout.addWidget(self.Order_entry, 6, 2, 1, 1)
 
+        self.Momentum_entry = QtWidgets.QLineEdit(self.gridLayoutWidget)
+        self.Momentum_entry.setObjectName("Momentum_entry")
+        self.Momentum_entry.setText("0.01")
+        self.Layout.addWidget(self.Momentum_entry, 5, 4, 1, 1)
+
+
         spacerItem1 = QtWidgets.QSpacerItem(
             40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         spacerItem = QtWidgets.QSpacerItem(
@@ -177,6 +187,7 @@ class Window(QMainWindow):
         self.Kill_button.setText(_translate("Frame", "Kill"))
         self.label_6.setText(_translate("Frame", "Splines Gridcount"))
         self.label_7.setText(_translate("Frame", "Splines Order"))
+        self.label_8.setText(_translate("Frame", "Momentum factor"))
 
     def start_training(self):
         def go():
@@ -240,11 +251,13 @@ class Window(QMainWindow):
                 print("Selected model: Lerochka")
                 from network_models import lerochka
                 minibatch = int(self.Batchsize_entry.text())
+                p = float(self.Momentum_entry.text())
+
                 self.AI = lerochka.NN(structure, learning_rate=lr,
                                       train_inputs=self.model_inputs, train_outputs=self.model_outputs)
                 print("Initialisation complete, now training...")
                 self.trained_hyperparameters = self.AI.train(
-                    sub_batch_size=minibatch)
+                    sub_batch_size=minibatch, momentum=p)
 
             else:
                 print("Not implemented yet!")
